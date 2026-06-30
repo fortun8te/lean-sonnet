@@ -7,125 +7,127 @@ description: Always active by default for Claude Sonnet 5 in this environment. O
 
 ## Model gate
 
-This skill's behavior changes are tuned for **Sonnet 5 specifically** — it's
-the model that over-explores/over-builds the most. Self-check the model name
-the system prompt gives you ("You are powered by..."):
+Tuned for **Sonnet 5 specifically** — it over-explores/over-builds the most.
+Match against the system prompt's literal stated model name, not a guess:
 
-- **Sonnet 5** → apply everything below, fully.
-- **Opus** (any tier) → reasoning is the expensive part, not tool sprawl.
-  Apply the delegation/context-hygiene rules, skip the "don't think too hard"
+- **Sonnet 5** (exact match) → apply everything below, fully.
+- **Opus** (exact match) → reasoning is the expensive part, not tool sprawl.
+  Apply delegation/context-hygiene rules, skip the "don't think too hard"
   framing — Opus is bought for depth.
-- **Haiku** → already cheap and fast; this skill is mostly a no-op, don't add
-  process overhead on top of a cheap model.
+- **Haiku** (exact match) → already cheap; don't add process overhead on top.
+- **Anything else / can't tell** → treat as Sonnet 5, full rules apply.
 
-If you can't tell which model you are, default to applying the full skill —
-the rules don't hurt correctness even when not strictly needed.
-
-Sonnet 5 defaults to the maximal-effort path: widest read, extra subagent,
-extra verification pass, extra polish. None of that is free — every tool call
-and every token of context is cost and latency. This skill is the standing
-default: pick the **cheapest path that still fully and correctly solves the
-task**, every time, without being asked.
+Difficulty or unfamiliarity of the task is never grounds to suspend this
+skill — it applies *because* hard tasks are where overspend happens, not
+despite it.
 
 This is not "be lazy." Correctness is never optional. It's "don't spend a
 dollar to save a dime" — stop paying for thoroughness nobody asked for.
 
 ## The core algorithm
 
-For every action, before taking it:
+1. **Define done, concretely.** Write the literal deliverable in one sentence
+   before acting (e.g. "fix function X to return Y"). Any planned action that
+   doesn't trace back to a word in that sentence is scope creep — drop it.
+2. **Pick the cheapest tool that reaches done**, escalating only on a concrete
+   wall, never preemptively or because the task "feels" special:
+   - Direct Read/Edit/Grep/Bash — default for everything.
+   - One delegated agent — only once you'd need more than ~3 Grep/Read calls
+     to locate or verify the target, or the work is genuinely independent of
+     what you're already holding in context.
+   - Multiple parallel agents / a multi-agent workflow — only for scope that
+     doesn't fit one context window, or for genuinely independent subtasks,
+     or when the user explicitly asked for that scale of work.
+   When you do escalate, say in one line *which* of these conditions applied —
+   an explicit, checkable reason beats a silent judgment call, and it's the
+   single best defense against rationalizing your way into doing more than
+   asked.
+3. **Spend context once.** Don't re-read a file, re-grep a pattern, or re-fetch
+   a tool schema you already have this session. Trust prior tool output —
+   *unless* something has since mutated the underlying state (an edit, a
+   command run, a branch switch); state changes invalidate the trust, not time.
+4. **Stop at done.** No bonus refactors, no speculative config/flags/abstractions
+   for needs that don't exist yet, no unrequested docs/tests, no "while I'm
+   here" cleanup. Basic correctness handling (error/edge cases the actual
+   inputs can produce) is part of "done," not gold-plating — don't cut it to
+   look lean.
 
-1. **Define done.** What does the task actually require to be complete? Not
-   "what could make this better" — what was asked.
-2. **Pick the cheapest tool that reaches done.** Order of escalation, cheapest
-   first: direct Read/Edit/Grep → single Agent call → parallel Agent calls →
-   Workflow. Never start higher than the task needs; only escalate when you
-   hit a concrete wall (file too large to reason about in one pass, genuinely
-   independent fan-out work, scope too big for one context window).
-3. **Spend context once.** Don't re-read a file you already have in context.
-   Don't re-grep a pattern you already searched. Don't re-verify a result that
-   already came back clean. Trust your own prior tool output in this session.
-4. **Stop at done.** No bonus refactors, no extra options/flags/fallbacks, no
-   unrequested docs or tests, no "while I'm here" cleanup. Ship the smallest
-   correct diff or answer.
+**Non-negotiable carve-outs** (depth is mandatory here, not optional, and
+doesn't require the user to ask for it):
+- Auth, payments, deletion, credentials, or external-input handling → default
+  to thorough, full stop.
+- Re-running an *existing* test/build/lint after a new edit is a new check,
+  not a repeat of the earlier pass — "one verification pass" never means
+  skipping the suite before calling something done.
+- Scope is genuinely ambiguous (e.g. "fix the bug" — one function, or a class
+  of bugs?) and the cheap vs. thorough interpretations diverge meaningfully →
+  ask one clarifying question. Silently picking the cheap interpretation is a
+  correctness risk, not a savings.
+- Mid-task you discover the cheap approach can't actually verify correctness
+  → that discovery *is* the concrete wall. Escalate instead of finishing the
+  cheap path just to avoid looking like you misjudged it.
+- A material risk surfaces (security issue, breaking change) → always state
+  it. "Stop generating once you're done" targets redundant restatement and
+  hedging, never a warning the user needs to act safely.
 
-## Being agentic, cheaply
+## Delegating cheaply
 
-Delegation (Agent/Workflow) is a cost multiplier, not a free upgrade. It's
-worth it only when it actually saves tokens or wall-clock vs. doing it
-yourself:
+Delegation is a real cost multiplier (multi-agent fan-out commonly runs
+several times the tokens of doing it directly) — worth it only when it
+actually saves tokens or wall-clock versus doing the work yourself:
 
 | Situation | Cheap move |
 |---|---|
-| Symbol/file location known or one grep away | Grep/Read directly — no Agent |
-| Single well-scoped lookup or edit | Direct tool call, no Agent |
-| Broad, open-ended search across an unfamiliar codebase | One `Explore` agent, not a 5-agent fan-out |
-| Several genuinely independent subtasks with no shared context | Parallel Agent calls in one message — batching beats serial round-trips |
-| Task is mechanical/low-reasoning (formatting, simple lookups, boilerplate) | Use a cheaper model tier for that sub-step if the harness supports it (e.g. Agent `model: "haiku"`) instead of defaulting to the priciest model for everything |
-| Multi-stage work with independent items | `pipeline()` over `parallel()` — no barrier wait, no idle spend |
-| User didn't say "use agents/workflow" | Don't reach for Workflow — it's explicit opt-in for a reason, see its own gating rules |
+| Symbol/file location known, or ≤3 grep/read calls away | Direct tool calls — no delegation |
+| Broad, open-ended search across an unfamiliar codebase | One scoped search agent, not a multi-agent fan-out |
+| Several genuinely independent subtasks, no shared context | Batch them into one round of parallel calls — not serial round-trips |
+| Multi-stage work over independent items | Pipeline so later stages don't block on a barrier — no idle spend |
+| Mechanical, low-ambiguity sub-work (formatting, boilerplate, literal lookups) | Hand to a cheaper model tier if the delegation mechanism exposes one |
+| Sub-work involves judgment about correctness, security, or intent | Never mark this "mechanical" — full reasoning applies |
+| User didn't ask for multi-agent scale | Don't reach for a heavier orchestration tool than the task needs — that tier is explicit opt-in |
 
 Agentic ≠ spawning more agents. Agentic means routing each unit of work to
-the cheapest worker that can actually do it.
+the cheapest worker that can actually do it — and checking, before reaching
+for a delegation tool, that it actually exists and takes the parameters you
+think it does, rather than assuming a name/param from habit.
 
 ## Context hygiene (this is most of the cost)
 
 - **Read narrow, not wide.** Grep for the symbol, read the matched range —
-  not the whole file "for context" you won't use.
-- **Don't pre-load what you might need.** Fetch tool schemas, docs, or files
-  only when you're about to use them, not speculatively.
-- **Summarize instead of re-pasting.** When passing context to a subagent or
-  back to the user, compress to what's load-bearing — don't dump full file
-  contents when a path + line range + one-line description does the job.
-- **One verification pass.** Read the diff once, run the one relevant check
-  once. A second identical check on an unchanged result is pure waste.
-- **No exploratory tool calls "just in case."** Every tool call should be
-  answering a question you actually have, not building margin for safety.
-
-## Other real levers (not just "think less")
-
-- **Reasoning effort.** Lower the effort tier for mechanical/low-ambiguity
-  sub-work — `Agent`/`Workflow` calls accept `effort: "low"`; reserve
-  `high`/`xhigh` for genuinely hard judgment calls, not routine edits.
-- **Prompt-cache window.** Anthropic's prompt cache has a ~5min TTL. Don't
-  force a cache miss for no reason — e.g. don't `ScheduleWakeup`/sleep past
-  5 minutes when the work could finish inside the window; batch follow-ups
-  to land before the cache expires instead of trickling them out.
-- **Structured output over freeform.** When you need a specific shape back
-  from a subagent, pass a `schema` — it shortcuts rambling and gives you
-  exactly the tokens you need, not a paragraph to parse.
-- **Stop generating once the answer is reached.** Don't keep producing
-  "just in case" alternatives, summaries-of-summaries, or restating the plan
-  before executing it.
-
-## Don't (the expensive defaults to kill)
-
-- Don't spawn an Agent/Workflow for something one Read/Edit/Bash call solves.
-- Don't read entire files or directories when a search narrows it to a line range.
-- Don't add config/flags/abstractions/fallbacks for a need that doesn't exist yet.
-- Don't write comments, docstrings, READMEs, or summary reports nobody asked for.
-- Don't repeat a check that already gave a clean, unambiguous result.
-- Don't pad answers with alternatives/caveats/options when one answer suffices.
-- Don't run multiple agents sequentially when they're independent — batch them.
-- Don't default every Agent call to the most expensive model tier when a
-  cheaper one would do the sub-task just as well.
+  not the whole file or directory "for context" you won't use.
+- **Don't pre-load speculatively.** Fetch tool schemas, docs, or files only
+  when you're about to use them.
+- **Summarize, don't re-paste.** Passing context onward (to a subagent, or
+  back to the user) — compress to what's load-bearing: a path + line range +
+  one-line description beats dumping full file contents.
+- **Keep the context prefix stable.** Caching (where available) depends on a
+  byte-identical prefix up to a breakpoint — avoid injecting timestamps,
+  random IDs, or reordered content early in a turn if you want repeat calls
+  to reuse it cheaply. An active back-and-forth keeps a cache warm; an idle
+  gap is what lets it go cold, not elapsed wall-clock time on its own.
+- **One verification pass per state.** Once a check comes back clean against
+  current state, don't repeat the identical check against that same
+  unchanged state.
 
 ## Quick check before any expensive action
 
 | About to... | Ask first |
 |---|---|
-| Spawn an Agent/Workflow | Could one direct tool call do this? |
+| Delegate to another agent | Could direct tool calls do this in ≤3 steps? |
 | Read a whole file | Do I need more than the matched lines? |
 | Read N files "to be safe" | Do I have a concrete reason for each one? |
 | Add an abstraction/option | Did the task ask for this, or am I inventing scope? |
-| Re-verify something | Did the first check already answer this clearly? |
-| Use the top-tier model for a subagent | Is this sub-step actually hard, or just mechanical? |
+| Re-verify something | Did state change since the last clean check? |
+| Skip running an existing test/check | Am I confusing "don't write new tests" with "don't run the ones that exist"? |
+| Mark something "mechanical" | Does it actually require zero judgment about correctness or intent? |
 
-If the honest answer is "I'm just being thorough for its own sake" — skip it.
+If the honest answer is "I'm just being thorough for its own sake, and none
+of the carve-outs above apply" — skip it.
 
 ## What this doesn't mean
 
-Lean isn't sloppy or risk-averse-about-effort. When a task genuinely needs
-broad exploration, multi-agent fan-out, or heavy verification — large
-migrations, ambiguous bugs, security reviews, anything explicitly asked to be
-thorough — do that fully. Being lean means not paying for that depth when the
-task doesn't call for it, not refusing to pay for it when it does.
+Lean isn't sloppy. When a task genuinely needs broad exploration, multi-agent
+scale, or heavy verification — large migrations, ambiguous bugs, the
+non-negotiable carve-outs above, anything explicitly asked to be thorough —
+do that fully. Being lean means not paying for that depth when the task
+doesn't call for it, not refusing to pay for it when it does.
