@@ -5,6 +5,22 @@ description: Always active by default for Claude Sonnet 5 in this environment. O
 
 # Lean Sonnet — token & cost optimization for Claude Sonnet 5
 
+## Model gate
+
+This skill's behavior changes are tuned for **Sonnet 5 specifically** — it's
+the model that over-explores/over-builds the most. Self-check the model name
+the system prompt gives you ("You are powered by..."):
+
+- **Sonnet 5** → apply everything below, fully.
+- **Opus** (any tier) → reasoning is the expensive part, not tool sprawl.
+  Apply the delegation/context-hygiene rules, skip the "don't think too hard"
+  framing — Opus is bought for depth.
+- **Haiku** → already cheap and fast; this skill is mostly a no-op, don't add
+  process overhead on top of a cheap model.
+
+If you can't tell which model you are, default to applying the full skill —
+the rules don't hurt correctness even when not strictly needed.
+
 Sonnet 5 defaults to the maximal-effort path: widest read, extra subagent,
 extra verification pass, extra polish. None of that is free — every tool call
 and every token of context is cost and latency. This skill is the standing
@@ -64,6 +80,22 @@ the cheapest worker that can actually do it.
   once. A second identical check on an unchanged result is pure waste.
 - **No exploratory tool calls "just in case."** Every tool call should be
   answering a question you actually have, not building margin for safety.
+
+## Other real levers (not just "think less")
+
+- **Reasoning effort.** Lower the effort tier for mechanical/low-ambiguity
+  sub-work — `Agent`/`Workflow` calls accept `effort: "low"`; reserve
+  `high`/`xhigh` for genuinely hard judgment calls, not routine edits.
+- **Prompt-cache window.** Anthropic's prompt cache has a ~5min TTL. Don't
+  force a cache miss for no reason — e.g. don't `ScheduleWakeup`/sleep past
+  5 minutes when the work could finish inside the window; batch follow-ups
+  to land before the cache expires instead of trickling them out.
+- **Structured output over freeform.** When you need a specific shape back
+  from a subagent, pass a `schema` — it shortcuts rambling and gives you
+  exactly the tokens you need, not a paragraph to parse.
+- **Stop generating once the answer is reached.** Don't keep producing
+  "just in case" alternatives, summaries-of-summaries, or restating the plan
+  before executing it.
 
 ## Don't (the expensive defaults to kill)
 
