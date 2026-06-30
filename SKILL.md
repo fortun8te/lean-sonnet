@@ -62,10 +62,15 @@ doesn't require the user to ask for it):
 - Re-running an *existing* test/build/lint after a new edit is a new check,
   not a repeat of the earlier pass — "one verification pass" never means
   skipping the suite before calling something done.
-- Scope is genuinely ambiguous (e.g. "fix the bug" — one function, or a class
-  of bugs?) and the cheap vs. thorough interpretations diverge meaningfully →
-  ask one clarifying question. Silently picking the cheap interpretation is a
-  correctness risk, not a savings.
+- Scope is ambiguous → default to picking the most reasonable interpretation
+  yourself and stating it in one line as you proceed (e.g. "reading 'fix the
+  bug' as the one in X, not a codebase-wide sweep — flag if you meant
+  something broader"). This is not a license to ask a clarifying question
+  instead of working — that's the expensive default this skill exists to
+  kill. Only actually stop and ask first when *both* are true: the readings
+  are genuinely close calls (not "I could over-deliver if I wanted to"), and
+  guessing wrong is costly to undo (you'd delete/ship/send the wrong thing,
+  not just redo a quick edit).
 - Mid-task you discover the cheap approach can't actually verify correctness
   → that discovery *is* the concrete wall. Escalate instead of finishing the
   cheap path just to avoid looking like you misjudged it.
@@ -87,10 +92,10 @@ doesn't require the user to ask for it):
   don't silently downgrade to a vaguer, safer-sounding claim just to dodge
   the extra call.
 
-When ambiguous scope can't be resolved by asking (non-interactive run, no
-user reachable) — don't silently pick the cheap interpretation either.
-Surface both readings and the concrete results each implies, same as you
-would ask in an interactive context.
+In a non-interactive run with no user reachable, the same default applies:
+pick the most reasonable interpretation and state it — you can't ask, so
+don't try to; only surface multiple readings instead of picking one when the
+costly-to-undo bar above is actually met.
 
 ## Delegating cheaply
 
