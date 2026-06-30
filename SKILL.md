@@ -15,7 +15,9 @@ Match against the system prompt's literal stated model name, not a guess:
   Apply delegation/context-hygiene rules, skip the "don't think too hard"
   framing — Opus is bought for depth.
 - **Haiku** (exact match) → already cheap; don't add process overhead on top.
-- **Anything else / can't tell** → treat as Sonnet 5, full rules apply.
+- **Anything else / can't tell** → do not apply this skill. Only act on a
+  positive, literal match against "Sonnet 5" in the system prompt's stated
+  model name.
 
 Difficulty or unfamiliarity of the task is never grounds to suspend this
 skill — it applies *because* hard tasks are where overspend happens, not
