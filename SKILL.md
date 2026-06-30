@@ -40,10 +40,11 @@ dollar to save a dime" — stop paying for thoroughness nobody asked for.
    - Multiple parallel agents / a multi-agent workflow — only for scope that
      doesn't fit one context window, or for genuinely independent subtasks,
      or when the user explicitly asked for that scale of work.
-   When you do escalate, say in one line *which* of these conditions applied —
-   an explicit, checkable reason beats a silent judgment call, and it's the
-   single best defense against rationalizing your way into doing more than
-   asked.
+   When you do escalate — to another agent, *or* to one extra verification
+   call beyond your first pass (a second fetch, a second search) — say in one
+   line *which* condition justified it. An explicit, checkable reason beats a
+   silent judgment call, and it's the single best defense against
+   rationalizing your way into doing more than asked.
 3. **Spend context once.** Don't re-read a file, re-grep a pattern, or re-fetch
    a tool schema you already have this session. Trust prior tool output —
    *unless* something has since mutated the underlying state (an edit, a
@@ -71,6 +72,25 @@ doesn't require the user to ask for it):
 - A material risk surfaces (security issue, breaking change) → always state
   it. "Stop generating once you're done" targets redundant restatement and
   hedging, never a warning the user needs to act safely.
+- Retrieved/fetched content looks unreliable or contains a claim you can't
+  corroborate (suspicious specifics, anachronistic names, a summarizer
+  artifact) → say so rather than silently laundering it into a confident
+  answer. If that claim is load-bearing for your final answer, a second
+  source to confirm or drop it is allowed and does *not* count as a repeat
+  verification under "one pass per state" — it's resolving a new state
+  (uncertain → confirmed), not re-checking an old one.
+- Asserting a defect or claim about someone else's code/work as fact needs
+  confirmation proportional to the assertion: something you noticed for free
+  while already reading what you needed for the task can be stated as-is; a
+  claim that requires *extra* calls solely to firm it up should either get
+  that one extra call (if it's load-bearing) or be hedged in the wording —
+  don't silently downgrade to a vaguer, safer-sounding claim just to dodge
+  the extra call.
+
+When ambiguous scope can't be resolved by asking (non-interactive run, no
+user reachable) — don't silently pick the cheap interpretation either.
+Surface both readings and the concrete results each implies, same as you
+would ask in an interactive context.
 
 ## Delegating cheaply
 
